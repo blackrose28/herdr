@@ -555,6 +555,21 @@ a:hover {
   font-size: 11px;
 }
 
+.pane-item.clickable:hover {
+  background: rgba(99, 102, 241, 0.06);
+  transform: translateX(2px);
+}
+
+.pane-item-type {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  padding: 2px 8px;
+  border-radius: 100px;
+  letter-spacing: 0.3px;
+}
+
 /* ─── Terminal Viewer ─── */
 .terminal-container {
   background: #0d1117;
@@ -594,9 +609,57 @@ a:hover {
   color: #c9d1d9;
   white-space: pre-wrap;
   word-wrap: break-word;
-  max-height: 500px;
+  max-height: 600px;
   overflow-y: auto;
   min-height: 200px;
+}
+
+/* When hosting xterm.js, remove default padding and let xterm control sizing */
+.terminal-body.terminal-body-xterm {
+  padding: 0;
+  overflow: hidden;
+  white-space: normal;
+  word-wrap: normal;
+}
+
+.terminal-body-xterm .terminal-placeholder {
+  padding: 16px 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+}
+
+/* xterm.js container */
+.terminal-pane-xterm {
+  width: 100%;
+  overflow: hidden;
+}
+
+.terminal-pane-xterm .xterm {
+  padding: 8px 4px;
+}
+
+.terminal-pane-xterm .xterm-viewport {
+  overflow-y: auto !important;
+}
+
+.terminal-pane-xterm .xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.terminal-pane-xterm .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terminal-pane-xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.terminal-pane-xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .terminal-input-bar {

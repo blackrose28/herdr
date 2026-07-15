@@ -84,12 +84,17 @@ export const api = {
   readPane: (serverId: string, paneId: string, source = 'recent', lines = 50) =>
     apiFetch(`/api/servers/${serverId}/panes/${paneId}/read`, {
       method: 'POST',
-      body: JSON.stringify({ source, lines, format: 'text' }),
+      body: JSON.stringify({ source, lines, format: 'ansi' }),
     }),
   sendToPane: (serverId: string, paneId: string, text: string) =>
     apiFetch(`/api/servers/${serverId}/panes/${paneId}/send`, {
       method: 'POST',
       body: JSON.stringify({ text }),
+    }),
+  sendToAgent: (serverId: string, paneId: string, text: string) =>
+    apiFetch(`/api/servers/${serverId}/command`, {
+      method: 'POST',
+      body: JSON.stringify({ method: 'agent.send', params: { target: paneId, text } }),
     }),
 
   // Generic command
@@ -104,11 +109,17 @@ export const api = {
 
 export type WsStatus = 'connecting' | 'connected' | 'disconnected';
 
+// Shared WebSocket instance for the dashboard
+let sharedWs: WebSocket | null = null;
+
+export function getWebSocket(): WebSocket | null {
+  return sharedWs;
+}
+
 export function connectWebSocket(
   onMessage: (message: any) => void,
   onStatusChange: (status: WsStatus) => void,
 ): () => void {
-  let ws: WebSocket | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let isClosing = false;
 
@@ -116,10 +127,21 @@ export function connectWebSocket(
     if (isClosing) return;
     onStatusChange('connecting');
 
-    ws = new WebSocket(`${WS_BASE}/ws/client?token=${encodeURIComponent(accessToken)}`);
+    const ws = new WebSocket(`${WS_BASE}/ws/client?token=${encodeURIComponent(accessToken)}`);
+    sharedWs = ws;
 
     ws.onopen = () => {
       onStatusChange('connected');
+      // Re-subscribe any active pane output subscriptions after reconnect
+      for (const key of activePaneSubscriptions.keys()) {
+        const [serverId, paneId] = key.split(':');
+        sendWsMessage(ws, {
+          type: 'subscribe_pane_output',
+          server_id: serverId,
+          pane_id: paneId,
+          lines: 100,
+        });
+      }
     };
 
     ws.onmessage = (event) => {
@@ -132,6 +154,7 @@ export function connectWebSocket(
     };
 
     ws.onclose = () => {
+      sharedWs = null;
       if (!isClosing) {
         onStatusChange('disconnected');
         reconnectTimer = setTimeout(connect, 3000);
@@ -148,13 +171,75 @@ export function connectWebSocket(
   return () => {
     isClosing = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
-    if (ws) ws.close();
+    if (sharedWs) sharedWs.close();
+    sharedWs = null;
   };
 }
 
 export function sendWsMessage(ws: WebSocket | null, message: object): void {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(message));
+  }
+}
+
+// ─── Pane output subscriptions ───
+
+type PaneOutputCallback = (text: string, revision: number) => void;
+const activePaneSubscriptions = new Map<string, Set<PaneOutputCallback>>();
+
+/**
+ * Subscribe to real-time pane output via WebSocket.
+ * Returns an unsubscribe function.
+ */
+export function subscribePaneOutput(
+  serverId: string,
+  paneId: string,
+  callback: PaneOutputCallback,
+  lines = 100,
+): () => void {
+  const key = `${serverId}:${paneId}`;
+
+  if (!activePaneSubscriptions.has(key)) {
+    activePaneSubscriptions.set(key, new Set());
+    // Tell hub to start streaming this pane
+    sendWsMessage(sharedWs, {
+      type: 'subscribe_pane_output',
+      server_id: serverId,
+      pane_id: paneId,
+      lines,
+    });
+  }
+
+  activePaneSubscriptions.get(key)!.add(callback);
+
+  return () => {
+    const subscribers = activePaneSubscriptions.get(key);
+    if (subscribers) {
+      subscribers.delete(callback);
+      if (subscribers.size === 0) {
+        activePaneSubscriptions.delete(key);
+        // Tell hub to stop streaming this pane
+        sendWsMessage(sharedWs, {
+          type: 'unsubscribe_pane_output',
+          server_id: serverId,
+          pane_id: paneId,
+        });
+      }
+    }
+  };
+}
+
+/**
+ * Dispatch a pane_output WebSocket message to registered callbacks.
+ * Called from the App.tsx WebSocket handler.
+ */
+export function dispatchPaneOutput(serverId: string, paneId: string, text: string, revision: number): void {
+  const key = `${serverId}:${paneId}`;
+  const subscribers = activePaneSubscriptions.get(key);
+  if (subscribers) {
+    for (const cb of subscribers) {
+      cb(text, revision);
+    }
   }
 }
 

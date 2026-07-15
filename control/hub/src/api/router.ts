@@ -195,7 +195,7 @@ router.post('/servers/:id/command', async (req, res) => {
  */
 router.post('/servers/:id/panes/:paneId/read', async (req, res) => {
   try {
-    const { source = 'recent', lines, format = 'text' } = req.body || {};
+    const { source = 'recent', lines, format = 'ansi' } = req.body || {};
     const result = await registry.sendCommandToServer(
       req.params.id,
       'pane.read',
@@ -204,7 +204,6 @@ router.post('/servers/:id/panes/:paneId/read', async (req, res) => {
         source,
         lines,
         format,
-        strip_ansi: true,
       }
     );
     res.json({ result });
@@ -216,7 +215,8 @@ router.post('/servers/:id/panes/:paneId/read', async (req, res) => {
 
 /**
  * POST /api/servers/:id/panes/:paneId/send
- * Send text to a pane.
+ * Send text to a pane. Uses pane.send_input which handles bracketed paste mode
+ * correctly for coding agents.
  */
 router.post('/servers/:id/panes/:paneId/send', async (req, res) => {
   try {
@@ -226,10 +226,22 @@ router.post('/servers/:id/panes/:paneId/send', async (req, res) => {
       return;
     }
 
+    // Use pane.send_input instead of pane.send_text:
+    // pane.send_input wraps text in bracketed paste sequences when the terminal
+    // has bracketed paste mode enabled (common for coding agents like Grok, Claude).
+    // pane.send_text sends raw bytes which get swallowed by bracketed paste mode.
+    // Split text from trailing newline — send text as paste, Enter as key.
+    const hasTrailingNewline = text.endsWith('\n');
+    const textContent = hasTrailingNewline ? text.slice(0, -1) : text;
+
     const result = await registry.sendCommandToServer(
       req.params.id,
-      'pane.send_text',
-      { pane_id: req.params.paneId, text }
+      'pane.send_input',
+      {
+        pane_id: req.params.paneId,
+        text: textContent,
+        keys: hasTrailingNewline ? ['enter'] : [],
+      }
     );
     res.json({ result });
   } catch (err) {

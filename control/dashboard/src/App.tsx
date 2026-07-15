@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { connectWebSocket, api } from './api/client';
+import { connectWebSocket, api, dispatchPaneOutput } from './api/client';
 import { useHubStore } from './stores/hub-store';
 import { LoginPage } from './pages/Login';
 import { OverviewPage } from './pages/Overview';
@@ -108,6 +108,17 @@ function AuthenticatedApp() {
               api.getOverview().then(setServersFromOverview).catch(() => {});
             }
             break;
+          case 'pane_output':
+            // Dispatch real-time terminal output to subscribed components
+            if (message.data) {
+              dispatchPaneOutput(
+                message.data.server_id,
+                message.data.pane_id,
+                message.data.text,
+                message.data.revision,
+              );
+            }
+            break;
         }
       },
       setWsStatus
@@ -123,7 +134,7 @@ function AuthenticatedApp() {
         <Routes>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/server/:serverId" element={<ServerDetailPage />} />
-          <Route path="/server/:serverId/agent/:paneId" element={<AgentViewPage />} />
+          <Route path="/server/:serverId/pane/:paneId" element={<AgentViewPage />} />
         </Routes>
       </main>
     </div>

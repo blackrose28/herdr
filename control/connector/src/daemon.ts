@@ -284,8 +284,7 @@ export class ConnectorDaemon {
           pane_id: paneId,
           source: 'recent',
           lines: lines || 50,
-          format: 'text',
-          strip_ansi: true,
+          format: 'ansi',
         });
 
         if (response.result && response.result.revision !== lastRevision) {

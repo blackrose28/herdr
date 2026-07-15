@@ -98,7 +98,7 @@ export function ServerDetailPage() {
               <div
                 key={agent.pane_id}
                 className="agent-row"
-                onClick={() => navigate(`/server/${serverId}/agent/${agent.pane_id}`)}
+                onClick={() => navigate(`/server/${serverId}/pane/${agent.pane_id}`)}
               >
                 <span className={`status-dot ${agent.agent_status}`} />
                 <span className="agent-row-name">
@@ -167,21 +167,19 @@ export function ServerDetailPage() {
                               return (
                                 <div
                                   key={pane.pane_id}
-                                  className="pane-item"
-                                  onClick={() => {
-                                    if (paneAgent) {
-                                      navigate(`/server/${serverId}/agent/${pane.pane_id}`);
-                                    }
-                                  }}
+                                  className="pane-item clickable"
+                                  onClick={() => navigate(`/server/${serverId}/pane/${pane.pane_id}`)}
                                 >
                                   <span className={`status-dot ${pane.agent_status}`} />
                                   <span className="pane-item-label">
                                     {pane.label || pane.display_agent || pane.agent || pane.cwd?.split('/').pop() || pane.pane_id}
                                   </span>
-                                  {paneAgent && (
+                                  {paneAgent ? (
                                     <span className={`agent-badge ${pane.agent_status}`} style={{ fontSize: 10 }}>
                                       {pane.agent_status}
                                     </span>
+                                  ) : (
+                                    <span className="pane-item-type">terminal</span>
                                   )}
                                 </div>
                               );
