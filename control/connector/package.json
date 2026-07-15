@@ -1,0 +1,26 @@
+{
+  "name": "herdr-connector",
+  "version": "0.1.0",
+  "description": "Herdr plugin that connects to a centralized Hub for remote control",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/daemon.ts"
+  },
+  "keywords": [
+    "herdr",
+    "herdr-plugin",
+    "connector"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
+  }
+}

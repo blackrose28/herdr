@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: herdr
+      POSTGRES_PASSWORD: herdr
+      POSTGRES_DB: herdr_hub
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U herdr -d herdr_hub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  hub:
+    build: ./hub
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      HUB_ACCESS_TOKEN: herdr-hub-dev-token
+      DATABASE_URL: postgres://herdr:herdr@postgres:5432/herdr_hub
+      CORS_ORIGINS: "*"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

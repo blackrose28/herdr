@@ -1,0 +1,62 @@
+id = "hub.connector"
+name = "Hub Connector"
+version = "0.1.0"
+min_herdr_version = "0.6.10"
+description = "Connects this Herdr server to a central Hub for remote monitoring and control"
+platforms = ["linux", "macos"]
+
+[[build]]
+command = ["npm", "install"]
+
+[[actions]]
+id = "connect"
+title = "Connect to Hub"
+description = "Establish persistent connection to the Hub server"
+contexts = ["global"]
+command = ["node", "dist/cli.js", "connect"]
+
+[[actions]]
+id = "disconnect"
+title = "Disconnect from Hub"
+description = "Close connection to the Hub server"
+contexts = ["global"]
+command = ["node", "dist/cli.js", "disconnect"]
+
+[[actions]]
+id = "status"
+title = "Connection Status"
+description = "Show current Hub connection status"
+contexts = ["global"]
+command = ["node", "dist/cli.js", "status"]
+
+[[events]]
+on = "workspace.created"
+command = ["node", "dist/cli.js", "on-event"]
+
+[[events]]
+on = "workspace.closed"
+command = ["node", "dist/cli.js", "on-event"]
+
+[[events]]
+on = "pane.agent_status_changed"
+command = ["node", "dist/cli.js", "on-event"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["node", "dist/cli.js", "on-event"]
+
+[[events]]
+on = "tab.created"
+command = ["node", "dist/cli.js", "on-event"]
+
+[[events]]
+on = "tab.closed"
+command = ["node", "dist/cli.js", "on-event"]
+
+[[events]]
+on = "pane.created"
+command = ["node", "dist/cli.js", "on-event"]
+
+[[events]]
+on = "pane.closed"
+command = ["node", "dist/cli.js", "on-event"]

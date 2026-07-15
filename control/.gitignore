@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+drizzle/
+
+# Environment secrets (use .env.example as template)
+.env
+
+# OS
+.DS_Store
+
+# Lock files (reinstall on each machine)
+package-lock.json
