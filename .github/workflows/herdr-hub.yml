@@ -2,7 +2,7 @@ name: Herdr Hub
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'control/hub/**'
       - 'control/dashboard/**'
@@ -58,7 +58,7 @@ jobs:
   deploy:
     name: Deploy to GCP
     needs: ci
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment: production
     steps:
