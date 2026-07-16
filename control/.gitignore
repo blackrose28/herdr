@@ -3,7 +3,6 @@ node_modules/
 
 # Build outputs
 dist/
-drizzle/
 
 # Environment secrets (use .env.example as template)
 .env
