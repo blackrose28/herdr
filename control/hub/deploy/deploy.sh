@@ -94,7 +94,7 @@ REMOTE_DASHBOARD_STAGE="/tmp/herdr-dashboard-deploy"
 
 if [[ -d "$DASHBOARD_ROOT" ]]; then
   echo "==> Syncing Dashboard files..."
-  "${SSH_CMD[@]}" "$SSH_TARGET" "rm -rf '$REMOTE_DASHBOARD_STAGE' && mkdir -p '$REMOTE_DASHBOARD_STAGE'"
+  "${SSH_CMD[@]}" "$SSH_TARGET" "sudo rm -rf '$REMOTE_DASHBOARD_STAGE' && mkdir -p '$REMOTE_DASHBOARD_STAGE'"
   rsync -az --delete -e "$RSYNC_SSH" \
     --exclude node_modules \
     --exclude dist \
