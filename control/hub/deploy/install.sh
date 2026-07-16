@@ -77,10 +77,11 @@ echo "==> Installing npm dependencies and building Hub..."
 cd "$APP_DIR"
 sudo -u "$SERVICE_USER" npm ci
 sudo -u "$SERVICE_USER" npm run build
-sudo -u "$SERVICE_USER" npm prune --omit=dev
-
 echo "==> Running database migrations..."
 sudo -u "$SERVICE_USER" npx drizzle-kit migrate 2>&1 || echo "    (migrations may already be applied)"
+
+echo "==> Pruning dev dependencies..."
+sudo -u "$SERVICE_USER" npm prune --omit=dev
 
 # ─── Dashboard ──────────────────────────────────────────────────────────────────
 
@@ -88,6 +89,7 @@ echo "==> Building and deploying Dashboard..."
 DASHBOARD_SRC="/tmp/herdr-dashboard-deploy"
 
 if [[ -d "$DASHBOARD_SRC" ]]; then
+  sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$DASHBOARD_SRC"
   cd "$DASHBOARD_SRC"
   sudo -u "$SERVICE_USER" npm ci
   sudo -u "$SERVICE_USER" npm run build
