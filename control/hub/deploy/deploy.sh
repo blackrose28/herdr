@@ -90,13 +90,16 @@ rsync -az --delete -e "$RSYNC_SSH" \
 
 # ─── Sync Dashboard ────────────────────────────────────────────────────────────
 
+REMOTE_DASHBOARD_STAGE="/tmp/herdr-dashboard-deploy"
+
 if [[ -d "$DASHBOARD_ROOT" ]]; then
   echo "==> Syncing Dashboard files..."
+  "${SSH_CMD[@]}" "$SSH_TARGET" "rm -rf '$REMOTE_DASHBOARD_STAGE' && mkdir -p '$REMOTE_DASHBOARD_STAGE'"
   rsync -az --delete -e "$RSYNC_SSH" \
     --exclude node_modules \
     --exclude dist \
     --exclude .env \
-    "${DASHBOARD_ROOT}/" "${SSH_TARGET}:/opt/herdr/dashboard-src/"
+    "${DASHBOARD_ROOT}/" "${SSH_TARGET}:${REMOTE_DASHBOARD_STAGE}/"
 else
   echo "    WARNING: Dashboard not found at $DASHBOARD_ROOT"
 fi

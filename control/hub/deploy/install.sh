@@ -85,7 +85,7 @@ sudo -u "$SERVICE_USER" npx drizzle-kit migrate 2>&1 || echo "    (migrations ma
 # ─── Dashboard ──────────────────────────────────────────────────────────────────
 
 echo "==> Building and deploying Dashboard..."
-DASHBOARD_SRC="$(dirname "$APP_DIR")/dashboard-src"
+DASHBOARD_SRC="/tmp/herdr-dashboard-deploy"
 
 if [[ -d "$DASHBOARD_SRC" ]]; then
   cd "$DASHBOARD_SRC"
