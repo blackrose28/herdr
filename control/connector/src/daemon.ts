@@ -16,6 +16,7 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { hostname as osHostname, platform } from 'os';
 import { herdrRequest, herdrSubscribe } from './herdr-client.js';
+import { CONFIG_DIR, STATE_DIR } from './paths.js';
 
 interface ConnectorConfig {
   hub_url: string;
@@ -34,8 +35,7 @@ interface HubMessage {
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 60_000;
-const STATE_DIR = process.env.HERDR_PLUGIN_STATE_DIR || '/tmp/herdr-connector-state';
-const CONFIG_DIR = process.env.HERDR_PLUGIN_CONFIG_DIR || '/tmp/herdr-connector-config';
+// STATE_DIR and CONFIG_DIR are imported from paths.ts
 
 export class ConnectorDaemon {
   private config: ConnectorConfig;
