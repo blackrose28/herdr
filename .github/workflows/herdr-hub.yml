@@ -1,0 +1,128 @@
+name: Herdr Hub
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'control/hub/**'
+      - 'control/dashboard/**'
+      - '.github/workflows/herdr-hub.yml'
+  pull_request:
+    paths:
+      - 'control/hub/**'
+      - 'control/dashboard/**'
+      - '.github/workflows/herdr-hub.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: herdr-hub-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint, build, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            control/hub/package-lock.json
+            control/dashboard/package-lock.json
+
+      # Hub
+      - name: Install Hub dependencies
+        run: npm ci
+        working-directory: control/hub
+
+      - name: Build Hub
+        run: npm run build
+        working-directory: control/hub
+
+      # Dashboard
+      - name: Install Dashboard dependencies
+        run: npm ci
+        working-directory: control/dashboard
+
+      - name: Lint Dashboard
+        run: npm run lint
+        working-directory: control/dashboard
+
+      - name: Build Dashboard
+        run: npm run build
+        working-directory: control/dashboard
+
+  deploy:
+    name: Deploy to GCP
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write production .env
+        env:
+          HERDR_HUB_ENV: ${{ secrets.HERDR_HUB_ENV }}
+        run: |
+          if [[ -z "$HERDR_HUB_ENV" ]]; then
+            echo "Missing secret: HERDR_HUB_ENV" >&2
+            exit 1
+          fi
+          printf '%s\n' "$HERDR_HUB_ENV" > control/hub/.env.ci
+          # Ensure production bind
+          if grep -q '^HOST=' control/hub/.env.ci; then
+            sed -i 's/^HOST=.*/HOST=127.0.0.1/' control/hub/.env.ci
+          else
+            echo 'HOST=127.0.0.1' >> control/hub/.env.ci
+          fi
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          if [[ -z "$DEPLOY_SSH_KEY" || -z "$DEPLOY_HOST" ]]; then
+            echo "Missing DEPLOY_SSH_KEY secret or DEPLOY_HOST variable." >&2
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          SSH_USER: ${{ vars.DEPLOY_USER }}
+          SSH_HOST: ${{ vars.DEPLOY_HOST }}
+          HERDR_DOMAIN: ${{ vars.HERDR_DOMAIN }}
+          ENV_FILE: ${{ github.workspace }}/control/hub/.env.ci
+          SSH_IDENTITY_FILE: ~/.ssh/deploy_key
+        run: |
+          export SSH_USER="${SSH_USER:-chuonglevan}"
+          export HERDR_DOMAIN="${HERDR_DOMAIN:-_}"
+          cd control/hub
+          ./deploy/deploy.sh
+
+      - name: Verify health
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          HERDR_DOMAIN: ${{ vars.HERDR_DOMAIN }}
+        run: |
+          if [[ -n "$HERDR_DOMAIN" && "$HERDR_DOMAIN" != "_" ]]; then
+            URL="http://${HERDR_DOMAIN}/health"
+          else
+            URL="http://${DEPLOY_HOST}/health"
+          fi
+          for _ in $(seq 1 10); do
+            if curl -fsS "$URL"; then
+              echo
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Health check failed: $URL" >&2
+          exit 1

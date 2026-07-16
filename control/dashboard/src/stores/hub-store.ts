@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import type { ServerInfo, WorkspaceInfo, TabInfo, PaneInfo, AgentInfo, AgentStatus, WsStatus } from '../api/client';
+import type { ServerInfo, WorkspaceInfo, TabInfo, PaneInfo, AgentInfo, WsStatus } from '../api/client';
 
 interface ServerState {
   workspaces: WorkspaceInfo[];

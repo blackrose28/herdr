@@ -60,15 +60,16 @@ httpServer.on('upgrade', (request, socket, head) => {
   }
 });
 
-httpServer.listen(config.port, () => {
+httpServer.listen(config.port, config.host, () => {
   console.log(`
 ╔══════════════════════════════════════════════════╗
 ║              Herdr Hub v0.1.0                    ║
 ╠══════════════════════════════════════════════════╣
-║  REST API:    http://localhost:${config.port}/api          ║
-║  Health:      http://localhost:${config.port}/health       ║
-║  Server WS:   ws://localhost:${config.port}/ws/server      ║
-║  Client WS:   ws://localhost:${config.port}/ws/client      ║
+║  Bind:        ${config.host}:${config.port}${' '.repeat(Math.max(0, 27 - `${config.host}:${config.port}`.length))}║
+║  REST API:    http://${config.host}:${config.port}/api${' '.repeat(Math.max(0, 18 - `${config.host}:${config.port}`.length))}║
+║  Health:      http://${config.host}:${config.port}/health${' '.repeat(Math.max(0, 15 - `${config.host}:${config.port}`.length))}║
+║  Server WS:   ws://${config.host}:${config.port}/ws/server${' '.repeat(Math.max(0, 13 - `${config.host}:${config.port}`.length))}║
+║  Client WS:   ws://${config.host}:${config.port}/ws/client${' '.repeat(Math.max(0, 13 - `${config.host}:${config.port}`.length))}║
 ╚══════════════════════════════════════════════════╝
   `);
 });

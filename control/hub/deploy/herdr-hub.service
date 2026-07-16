@@ -1,0 +1,24 @@
+[Unit]
+Description=Herdr Hub API Server
+After=network.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=herdr
+Group=herdr
+WorkingDirectory=/opt/herdr/hub
+EnvironmentFile=/opt/herdr/hub/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=herdr-hub
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

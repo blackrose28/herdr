@@ -2,8 +2,12 @@
  * Hub API client — REST + WebSocket for the Dashboard.
  */
 
-const API_BASE = localStorage.getItem('hub_url') || import.meta.env.VITE_HUB_URL || 'http://localhost:3001';
-const WS_BASE = API_BASE.replace(/^http/, 'ws');
+// In production behind nginx, use relative URLs (empty base).
+// For local dev, set VITE_HUB_URL or use localStorage override.
+const API_BASE = localStorage.getItem('hub_url') || import.meta.env.VITE_HUB_URL || '';
+const WS_BASE = API_BASE
+  ? API_BASE.replace(/^http/, 'ws')
+  : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
 
 let accessToken = localStorage.getItem('hub_token') || '';
 

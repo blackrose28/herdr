@@ -26,7 +26,7 @@ export function AgentViewPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] = useState<'streaming' | 'polling' | 'idle'>('idle');
   const terminalPaneRef = useRef<TerminalPaneHandle>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval>>();
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRevisionRef = useRef<number>(0);
 
   const loadPaneContent = useCallback(async () => {
@@ -107,7 +107,7 @@ export function AgentViewPage() {
     return () => {
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
-        pollTimerRef.current = undefined;
+        pollTimerRef.current = null;
       }
     };
   }, [wsStatus, streamStatus, serverId, paneId, loadPaneContent]);

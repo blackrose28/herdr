@@ -3,7 +3,7 @@ import { api, setToken } from '../api/client';
 import { useHubStore } from '../stores/hub-store';
 
 export function LoginPage() {
-  const [hubUrl, setHubUrl] = useState(localStorage.getItem('hub_url') || 'http://localhost:3000');
+  const [hubUrl, setHubUrl] = useState(localStorage.getItem('hub_url') || '');
   const [token, setTokenValue] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,7 +15,12 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      localStorage.setItem('hub_url', hubUrl);
+      // Only store hub_url if explicitly set (empty = use current origin)
+      if (hubUrl.trim()) {
+        localStorage.setItem('hub_url', hubUrl.trim());
+      } else {
+        localStorage.removeItem('hub_url');
+      }
       setToken(token);
 
       const valid = await api.validateToken(token);
@@ -48,8 +53,7 @@ export function LoginPage() {
             type="url"
             value={hubUrl}
             onChange={e => setHubUrl(e.target.value)}
-            placeholder="http://localhost:3000"
-            required
+            placeholder="Leave empty for current origin"
           />
         </div>
 

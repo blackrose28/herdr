@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api } from '../api/client';
 import { useHubStore } from '../stores/hub-store';
-import type { WorkspaceInfo, TabInfo, PaneInfo, AgentInfo } from '../api/client';
 
 export function ServerDetailPage() {
   const { serverId } = useParams<{ serverId: string }>();
