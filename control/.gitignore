@@ -10,6 +10,3 @@ drizzle/
 
 # OS
 .DS_Store
-
-# Lock files (reinstall on each machine)
-package-lock.json
