@@ -60,6 +60,7 @@ function handleClientConnection(ws: WebSocket): void {
   ws.on('message', (data) => {
     try {
       const message: ClientMessage = JSON.parse(data.toString());
+      console.log(`[client-gateway] ← client: ${message.type}`, message.type === 'subscribe_pane_output' ? `server=${message.server_id} pane=${message.pane_id}` : '');
       handleClientMessage(ws, message);
     } catch (err) {
       ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));

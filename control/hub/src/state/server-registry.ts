@@ -88,10 +88,13 @@ class ServerRegistry {
     const server = this.servers.get(serverId);
     if (server) {
       server.state = state;
+      console.log(`[registry] updateServerState for ${serverId}: ${state.agents?.length || 0} agents, ${state.panes?.length || 0} panes — broadcasting to ${this.clients.size} clients`);
       this.broadcastToClients({
         type: 'server_state',
         data: { server_id: serverId, state },
       });
+    } else {
+      console.warn(`[registry] updateServerState: server ${serverId} not found in registry`);
     }
   }
 
@@ -112,21 +115,32 @@ class ServerRegistry {
 
   handlePaneOutput(serverId: string, paneId: string, text: string, revision: number): void {
     const server = this.servers.get(serverId);
-    if (!server) return;
+    if (!server) {
+      console.warn(`[registry] handlePaneOutput: server ${serverId} not found`);
+      return;
+    }
 
     const subscribers = server.paneOutputSubscribers.get(paneId);
-    if (!subscribers || subscribers.size === 0) return;
+    if (!subscribers || subscribers.size === 0) {
+      console.log(`[registry] handlePaneOutput: no subscribers for ${paneId} (${server.paneOutputSubscribers.size} panes tracked)`);
+      return;
+    }
 
     const message = JSON.stringify({
       type: 'pane_output',
       data: { server_id: serverId, pane_id: paneId, text, revision },
     });
 
+    let sent = 0;
     for (const client of subscribers) {
       if (client.readyState === 1) { // OPEN
         client.send(message);
+        sent++;
+      } else {
+        console.warn(`[registry] handlePaneOutput: client socket not OPEN (state=${client.readyState})`);
       }
     }
+    console.log(`[registry] handlePaneOutput: sent pane ${paneId} rev=${revision} to ${sent}/${subscribers.size} subscribers`);
   }
 
   // ─── Command forwarding ───
@@ -247,10 +261,22 @@ class ServerRegistry {
 
   private broadcastToClients(message: object): void {
     const payload = JSON.stringify(message);
+    const type = (message as any).type || 'unknown';
+    let sent = 0;
+    let dropped = 0;
     for (const client of this.clients) {
       if (client.socket.readyState === 1) {
         client.socket.send(payload);
+        sent++;
+      } else {
+        dropped++;
       }
+    }
+    if (type !== 'server_state') { // server_state already logged above
+      console.log(`[registry] broadcast ${type}: sent=${sent} dropped=${dropped} total_clients=${this.clients.size}`);
+    }
+    if (this.clients.size === 0) {
+      console.warn(`[registry] broadcast ${type}: NO CLIENTS connected`);
     }
   }
 

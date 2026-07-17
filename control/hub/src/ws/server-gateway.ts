@@ -105,6 +105,9 @@ function handleServerConnection(ws: WebSocket, serverId: string, serverName: str
 }
 
 function handleConnectorMessage(serverId: string, message: ConnectorMessage): void {
+  if (message.type !== 'heartbeat') {
+    console.log(`[server-gateway] ← connector ${serverId}: ${message.type}`);
+  }
   switch (message.type) {
     case 'state_snapshot':
       registry.updateServerState(serverId, message.data);

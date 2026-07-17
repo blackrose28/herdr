@@ -151,6 +151,7 @@ export function connectWebSocket(
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
+        console.log('[ws] ← received:', message.type, message.data?.server_id || '', message.data?.pane_id || '');
         onMessage(message);
       } catch {
         // Skip invalid messages
@@ -182,7 +183,10 @@ export function connectWebSocket(
 
 export function sendWsMessage(ws: WebSocket | null, message: object): void {
   if (ws && ws.readyState === WebSocket.OPEN) {
+    console.log('[ws] → sending:', (message as any).type, JSON.stringify(message).slice(0, 120));
     ws.send(JSON.stringify(message));
+  } else {
+    console.warn('[ws] Message DROPPED — ws:', ws ? `state=${ws.readyState}` : 'null', (message as any).type);
   }
 }
 
