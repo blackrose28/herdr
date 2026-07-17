@@ -8,6 +8,7 @@ export default defineConfig({
     outDir: 'dist',
   },
   server: {
+    host: '0.0.0.0',
     proxy: {
       '/api': 'http://localhost:3001',
       '/health': 'http://localhost:3001',

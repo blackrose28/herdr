@@ -26,6 +26,7 @@ export function AgentViewPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] = useState<'streaming' | 'polling' | 'idle'>('idle');
   const terminalPaneRef = useRef<TerminalPaneHandle>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRevisionRef = useRef<number>(0);
 
@@ -130,6 +131,23 @@ export function AgentViewPage() {
       console.error('Failed to send:', err);
     } finally {
       setLoading(false);
+      // Keep focus on input so user can type the next command immediately
+      inputRef.current?.focus();
+    }
+  }
+
+  async function handleSendKeystroke(text: string) {
+    if (!serverId || !paneId) return;
+    try {
+      await api.sendToPane(serverId, paneId, text);
+      if (streamStatus !== 'streaming') {
+        setTimeout(loadPaneContent, 500);
+      }
+    } catch (err) {
+      console.error('Failed to send keystroke:', err);
+    } finally {
+      // Keep focus on input after keystroke buttons too
+      inputRef.current?.focus();
     }
   }
 
@@ -139,6 +157,21 @@ export function AgentViewPage() {
       handleSend();
     }
   };
+
+  // Common keystrokes: label, actual text to send, optional tooltip
+  const keystrokes: { label: string; text: string; tip: string }[] = [
+    { label: 'Ctrl+C', text: '\x03', tip: 'Interrupt / cancel' },
+    { label: 'Ctrl+D', text: '\x04', tip: 'EOF / exit' },
+    { label: 'Ctrl+Z', text: '\x1a', tip: 'Suspend process' },
+    { label: 'Ctrl+L', text: '\x0c', tip: 'Clear screen' },
+    { label: 'Tab', text: '\t', tip: 'Autocomplete' },
+    { label: 'Esc', text: '\x1b', tip: 'Escape' },
+    { label: 'Enter', text: '\n', tip: 'Submit / confirm' },
+    { label: '↑', text: '\x1b[A', tip: 'Up arrow / previous command' },
+    { label: '↓', text: '\x1b[B', tip: 'Down arrow / next command' },
+    { label: 'y', text: 'y\n', tip: 'Confirm (y + Enter)' },
+    { label: 'n', text: 'n\n', tip: 'Deny (n + Enter)' },
+  ];
 
   if (!server) {
     return (
@@ -268,8 +301,22 @@ export function AgentViewPage() {
           )}
         </div>
 
+        <div className="terminal-keystroke-bar">
+          {keystrokes.map((k) => (
+            <button
+              key={k.label}
+              className="keystroke-btn"
+              title={k.tip}
+              onClick={() => handleSendKeystroke(k.text)}
+            >
+              {k.label}
+            </button>
+          ))}
+        </div>
+
         <div className="terminal-input-bar">
           <input
+            ref={inputRef}
             className="terminal-input"
             type="text"
             value={inputText}

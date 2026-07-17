@@ -1,12 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHubStore } from '../stores/hub-store';
+import { api } from '../api/client';
+import { CreateModal } from '../components/CreateModal';
+
+type ModalState =
+  | null
+  | { type: 'workspace' }
+  | { type: 'pane'; workspaceId: string; targetPaneId?: string };
 
 export function ServerDetailPage() {
   const { serverId } = useParams<{ serverId: string }>();
   const navigate = useNavigate();
   const server = useHubStore(s => s.getServer(serverId || ''));
+  const { setServersFromOverview } = useHubStore();
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set());
+  const [modal, setModal] = useState<ModalState>(null);
 
   // Auto-expand first workspace
   useEffect(() => {
@@ -14,6 +23,10 @@ export function ServerDetailPage() {
       setExpandedWorkspaces(new Set([server.state.workspaces[0].workspace_id]));
     }
   }, [server?.state?.workspaces?.length]);
+
+  const refreshOverview = () => {
+    api.getOverview().then(setServersFromOverview).catch(() => {});
+  };
 
   if (!server) {
     return (
@@ -116,16 +129,44 @@ export function ServerDetailPage() {
 
       {/* Workspace tree */}
       <div className="section">
-        <div className="section-title">Workspaces</div>
+        <div className="section-header-row">
+          <div className="section-title">Workspaces</div>
+          {server.is_online && (
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => setModal({ type: 'workspace' })}
+              id="create-workspace-btn"
+            >
+              ＋ New Workspace
+            </button>
+          )}
+        </div>
         {workspaces.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state-text">No workspaces</div>
+            <div className="empty-state-icon">📦</div>
+            <div className="empty-state-title">No workspaces</div>
+            <div className="empty-state-text">
+              {server.is_online
+                ? 'Create your first workspace to get started.'
+                : 'Server is offline — workspaces will appear when it reconnects.'}
+            </div>
+            {server.is_online && (
+              <button
+                className="btn btn-primary"
+                style={{ marginTop: 16 }}
+                onClick={() => setModal({ type: 'workspace' })}
+              >
+                ＋ Create Workspace
+              </button>
+            )}
           </div>
         ) : (
           <div className="workspace-tree">
             {workspaces.map(ws => {
               const isExpanded = expandedWorkspaces.has(ws.workspace_id);
               const wsTabs = getTabsForWorkspace(ws.workspace_id);
+              // Pick first pane in this workspace as split target
+              const firstPaneInWs = panes.find(p => p.workspace_id === ws.workspace_id);
 
               return (
                 <div key={ws.workspace_id} className="workspace-item">
@@ -185,6 +226,26 @@ export function ServerDetailPage() {
                           </div>
                         );
                       })}
+
+                      {/* Add Pane button at the bottom of expanded workspace */}
+                      {server.is_online && (
+                        <div className="workspace-add-pane-row">
+                          <button
+                            className="btn btn-ghost btn-sm workspace-add-pane-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setModal({
+                                type: 'pane',
+                                workspaceId: ws.workspace_id,
+                                targetPaneId: firstPaneInWs?.pane_id,
+                              });
+                            }}
+                            id={`add-pane-${ws.workspace_id}`}
+                          >
+                            ＋ Add Pane
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -193,6 +254,18 @@ export function ServerDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Create Modal */}
+      {modal && serverId && (
+        <CreateModal
+          type={modal.type}
+          serverId={serverId}
+          workspaceId={modal.type === 'pane' ? modal.workspaceId : undefined}
+          targetPaneId={modal.type === 'pane' ? modal.targetPaneId : undefined}
+          onClose={() => setModal(null)}
+          onCreated={refreshOverview}
+        />
+      )}
     </div>
   );
 }

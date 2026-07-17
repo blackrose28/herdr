@@ -6,14 +6,26 @@ import { LoginPage } from './pages/Login';
 import { OverviewPage } from './pages/Overview';
 import { ServerDetailPage } from './pages/ServerDetail';
 import { AgentViewPage } from './pages/AgentView';
+import { WorkspaceDetailPage } from './pages/WorkspaceDetail';
 
 function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { wsStatus, servers, getTotalStats } = useHubStore();
+  const { wsStatus, servers, getTotalStats, getAllAgents } = useHubStore();
   const stats = getTotalStats();
+  const allAgents = getAllAgents();
 
   const isActive = (path: string) => location.pathname === path;
+
+  // Collect all workspaces across servers for the spaces section
+  const allWorkspaces: Array<{ serverId: string; serverName: string; workspace: any }> = [];
+  for (const server of servers.values()) {
+    if (server.state?.workspaces) {
+      for (const ws of server.state.workspaces) {
+        allWorkspaces.push({ serverId: server.id, serverName: server.name, workspace: ws });
+      }
+    }
+  }
 
   return (
     <aside className="sidebar">
@@ -34,7 +46,8 @@ function Sidebar() {
           Overview
         </button>
 
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '16px 12px 6px', marginTop: 8 }}>
+        {/* ─── Servers Section ─── */}
+        <div className="sidebar-section-label">
           Servers ({stats.online}/{stats.servers})
         </div>
 
@@ -49,19 +62,75 @@ function Sidebar() {
               {server.name}
             </span>
             {server.state?.agents && server.state.agents.length > 0 && (
-              <span style={{
-                fontSize: 10,
-                background: 'var(--bg-tertiary)',
-                padding: '2px 6px',
-                borderRadius: 4,
-                color: 'var(--text-tertiary)',
-              }}>
+              <span className="sidebar-count-badge">
                 {server.state.agents.length}
               </span>
             )}
           </button>
         ))}
+
+        {/* ─── Spaces Section ─── */}
+        {allWorkspaces.length > 0 && (
+          <>
+            <div className="sidebar-section-label" style={{ marginTop: 12 }}>
+              Spaces ({allWorkspaces.length})
+            </div>
+            <div className="sidebar-spaces-list">
+              {allWorkspaces.map(({ serverId, workspace: ws }) => (
+                <button
+                  key={`${serverId}:${ws.workspace_id}`}
+                  className={`sidebar-space-item ${location.pathname === `/server/${serverId}/workspace/${ws.workspace_id}` ? 'active' : ''}`}
+                  onClick={() => navigate(`/server/${serverId}/workspace/${ws.workspace_id}`)}
+                  title={ws.label}
+                >
+                  <span className={`status-dot ${ws.agent_status}`} />
+                  <span className="sidebar-space-label">{ws.label}</span>
+                  <span className="sidebar-space-meta">
+                    {ws.pane_count}p · {ws.tab_count}t
+                  </span>
+                  {ws.worktree && (
+                    <span className="sidebar-space-repo" title={ws.worktree.repo_name}>
+                      {ws.worktree.repo_name}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </nav>
+
+      {/* ─── Agents Panel (Bottom) ─── */}
+      <div className="sidebar-agents-panel">
+        <div className="sidebar-section-label" style={{ padding: '0 0 8px' }}>
+          Agents ({allAgents.length})
+          {stats.working > 0 && (
+            <span className="sidebar-agents-working-count">{stats.working} active</span>
+          )}
+        </div>
+        {allAgents.length === 0 ? (
+          <div className="sidebar-agents-empty">No agents running</div>
+        ) : (
+          <div className="sidebar-agents-list">
+            {allAgents.map(agent => (
+              <button
+                key={`${agent.server_id}:${agent.pane_id}`}
+                className="sidebar-agent-item"
+                onClick={() => navigate(`/server/${agent.server_id}/pane/${agent.pane_id}`)}
+                title={`${agent.display_agent || agent.agent || agent.name || 'agent'} — ${agent.agent_status}`}
+              >
+                <span className={`status-dot ${agent.agent_status}`} />
+                <span className="sidebar-agent-name">
+                  {agent.display_agent || agent.agent || agent.name || 'agent'}
+                </span>
+                <span className={`sidebar-agent-status ${agent.agent_status}`}>
+                  {agent.agent_status}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="sidebar-status">
         <div className={`connection-indicator ${wsStatus}`}>
@@ -134,6 +203,7 @@ function AuthenticatedApp() {
         <Routes>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/server/:serverId" element={<ServerDetailPage />} />
+          <Route path="/server/:serverId/workspace/:workspaceId" element={<WorkspaceDetailPage />} />
           <Route path="/server/:serverId/pane/:paneId" element={<AgentViewPage />} />
         </Routes>
       </main>

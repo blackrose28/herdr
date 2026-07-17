@@ -9,3 +9,7 @@ dist/
 
 # OS
 .DS_Store
+
+# Connector dev overrides (local Hub config/state)
+.dev-config/
+.dev-state/
