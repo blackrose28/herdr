@@ -284,36 +284,26 @@ export class ConnectorDaemon {
         const response = await herdrRequest('pane.read', {
           pane_id: paneId,
           source: 'recent',
-          lines: lines || 50,
+          lines: lines || 500,
           format: 'ansi',
         });
 
         if (response.result) {
-          const text = response.result.text || '';
-          // Use revision if available, otherwise fall back to text-based change detection
-          const revision = response.result.revision;
-          const hasRevision = revision !== undefined && revision !== null;
+          // Herdr pane.read response: { result: { type, read: { text, revision, ... } } }
+          const read = response.result.read || response.result;
+          const text = read.text || '';
 
-          let changed = false;
-          if (hasRevision) {
-            changed = revision !== revisionCounter;
-            if (changed) revisionCounter = revision;
-          } else {
-            // Simple hash: use text length + first/last chars for fast comparison
-            const hash = `${text.length}:${text.slice(0, 64)}:${text.slice(-64)}`;
-            changed = hash !== lastTextHash;
-            if (changed) {
-              lastTextHash = hash;
-              revisionCounter++;
-            }
-          }
-
-          if (changed) {
+          // Herdr's pane.read with source=recent always returns revision=0,
+          // so we use text-hash-based change detection and maintain our own counter.
+          const hash = `${text.length}:${text.slice(0, 100)}:${text.slice(-100)}`;
+          if (hash !== lastTextHash) {
+            lastTextHash = hash;
+            revisionCounter++;
             this.send({
               type: 'pane_output',
               pane_id: paneId,
               text,
-              revision: hasRevision ? revision : revisionCounter,
+              revision: revisionCounter,
             });
           }
         }

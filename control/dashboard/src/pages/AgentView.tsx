@@ -33,7 +33,7 @@ export function AgentViewPage() {
     if (!serverId || !paneId) return;
     try {
       setLoadError(null);
-      const result = await api.readPane(serverId, paneId, 'recent', 100);
+      const result = await api.readPane(serverId, paneId, 'recent', 500);
       // Herdr response shape: { result: { type: "pane_read", read: { text: "...", revision: N } } }
       const text =
         result.result?.read?.text ??   // Herdr canonical: result.read.text

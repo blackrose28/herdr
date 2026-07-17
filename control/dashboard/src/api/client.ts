@@ -143,7 +143,7 @@ export function connectWebSocket(
           type: 'subscribe_pane_output',
           server_id: serverId,
           pane_id: paneId,
-          lines: 100,
+          lines: 500,
         });
       }
     };
@@ -203,7 +203,7 @@ export function subscribePaneOutput(
   serverId: string,
   paneId: string,
   callback: PaneOutputCallback,
-  lines = 100,
+  lines = 500,
 ): () => void {
   const key = `${serverId}:${paneId}`;
 

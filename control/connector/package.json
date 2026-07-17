@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "deploy": "tsc && cp dist/*.js ~/.local/share/herdr/connector/dist/ && systemctl --user restart herdr-connector.service",
     "dev": "tsx watch src/daemon.ts"
   },
   "keywords": [
