@@ -275,7 +275,8 @@ export class ConnectorDaemon {
 
     console.log(`[connector] Starting pane output stream: ${paneId}`);
 
-    let lastRevision = 0;
+    let lastTextHash = '';
+    let revisionCounter = 0;
 
     // Poll pane.read at regular intervals (500ms)
     const timer = setInterval(async () => {
@@ -287,14 +288,34 @@ export class ConnectorDaemon {
           format: 'ansi',
         });
 
-        if (response.result && response.result.revision !== lastRevision) {
-          lastRevision = response.result.revision;
-          this.send({
-            type: 'pane_output',
-            pane_id: paneId,
-            text: response.result.text,
-            revision: response.result.revision,
-          });
+        if (response.result) {
+          const text = response.result.text || '';
+          // Use revision if available, otherwise fall back to text-based change detection
+          const revision = response.result.revision;
+          const hasRevision = revision !== undefined && revision !== null;
+
+          let changed = false;
+          if (hasRevision) {
+            changed = revision !== revisionCounter;
+            if (changed) revisionCounter = revision;
+          } else {
+            // Simple hash: use text length + first/last chars for fast comparison
+            const hash = `${text.length}:${text.slice(0, 64)}:${text.slice(-64)}`;
+            changed = hash !== lastTextHash;
+            if (changed) {
+              lastTextHash = hash;
+              revisionCounter++;
+            }
+          }
+
+          if (changed) {
+            this.send({
+              type: 'pane_output',
+              pane_id: paneId,
+              text,
+              revision: hasRevision ? revision : revisionCounter,
+            });
+          }
         }
       } catch {
         // Pane might have closed
