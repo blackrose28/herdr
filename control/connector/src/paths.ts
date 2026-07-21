@@ -34,8 +34,11 @@ export const SYSTEMD_USER_DIR = join(XDG_CONFIG_HOME, 'systemd', 'user');
 /** Service name */
 export const SERVICE_NAME = 'herdr-connector';
 
-/** Default herdr socket path */
-const DEFAULT_HERDR_SOCKET = join(XDG_DATA_HOME, 'herdr', 'server.sock');
+/** Known herdr socket paths, ordered by priority */
+const KNOWN_HERDR_SOCKETS = [
+  join(XDG_CONFIG_HOME, 'herdr', 'herdr.sock'),        // Common Herdr location
+  join(XDG_DATA_HOME, 'herdr', 'server.sock'),          // XDG data default
+];
 
 /**
  * Auto-detect the Herdr server socket path.
@@ -43,7 +46,8 @@ const DEFAULT_HERDR_SOCKET = join(XDG_DATA_HOME, 'herdr', 'server.sock');
  * Strategy:
  * 1. Check HERDR_SOCKET_PATH env var
  * 2. Try `herdr server info` to get the socket from a running server
- * 3. Fall back to default XDG path ~/.local/share/herdr/server.sock
+ * 3. Probe known socket paths on disk
+ * 4. Fall back to the most common path even if it doesn't exist yet
  *
  * Returns the path and whether it was verified as existing on disk.
  */
@@ -69,11 +73,18 @@ export function detectHerdrSocket(): { path: string; exists: boolean; source: st
     // herdr not in PATH or not running — that's fine
   }
 
-  // 3. Default XDG path
+  // 3. Probe known paths — return the first one that exists
+  for (const candidate of KNOWN_HERDR_SOCKETS) {
+    if (existsSync(candidate)) {
+      return { path: candidate, exists: true, source: 'known path probe' };
+    }
+  }
+
+  // 4. Fall back to first known path (most common)
   return {
-    path: DEFAULT_HERDR_SOCKET,
-    exists: existsSync(DEFAULT_HERDR_SOCKET),
-    source: 'default XDG path',
+    path: KNOWN_HERDR_SOCKETS[0],
+    exists: false,
+    source: 'default path',
   };
 }
 

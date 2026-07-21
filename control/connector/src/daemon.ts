@@ -12,6 +12,7 @@
  */
 
 import WebSocket from 'ws';
+import http from 'http';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { hostname as osHostname, platform } from 'os';
@@ -98,6 +99,36 @@ export class ConnectorDaemon {
     this.ws.on('error', (err) => {
       console.error('[connector] WebSocket error:', err.message);
     });
+
+    this.ws.on('unexpected-response', async (_req, res: http.IncomingMessage) => {
+      if (res.statusCode === 401) {
+        console.warn('[connector] API key rejected (401). Attempting auto-registration...');
+        this.ws?.removeAllListeners();
+        this.ws = null;
+        const registered = await this.tryAutoRegister();
+        if (registered) {
+          // Reset reconnect backoff and retry immediately
+          this.reconnectAttempts = 0;
+          this.connect();
+        } else {
+          this.scheduleReconnect();
+        }
+      }
+    });
+  }
+
+  private herdrUnavailableWarned = false;
+
+  private isHerdrUnavailable(err: unknown): boolean {
+    return err instanceof Error && err.message.includes('HERDR_SOCKET_PATH is not set');
+  }
+
+  private warnHerdrUnavailable(): void {
+    if (!this.herdrUnavailableWarned) {
+      this.herdrUnavailableWarned = true;
+      console.warn('[connector] ⚠ HERDR_SOCKET_PATH not set — running without local herdr connection');
+      console.warn('[connector]   Hub connection is active. Set HERDR_SOCKET_PATH to enable state sync.');
+    }
   }
 
   private async sendSnapshot(): Promise<void> {
@@ -132,7 +163,11 @@ export class ConnectorDaemon {
 
       console.log(`[connector] Sent state snapshot: ${workspaces.length} workspaces, ${allTabs.length} tabs, ${(panesRes.result?.panes || []).length} panes, ${(agentsRes.result?.agents || []).length} agents`);
     } catch (err) {
-      console.error('[connector] Failed to send snapshot:', err);
+      if (this.isHerdrUnavailable(err)) {
+        this.warnHerdrUnavailable();
+      } else {
+        console.error('[connector] Failed to send snapshot:', err);
+      }
     }
   }
 
@@ -179,6 +214,10 @@ export class ConnectorDaemon {
         }
       },
       (error) => {
+        if (this.isHerdrUnavailable(error)) {
+          this.warnHerdrUnavailable();
+          return; // Don't retry — no socket to connect to
+        }
         console.error('[connector] Event subscription error:', error.message);
         // Retry subscription after a delay
         setTimeout(() => {
@@ -328,6 +367,56 @@ export class ConnectorDaemon {
   private send(message: object): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
+    }
+  }
+
+  /**
+   * Auto-register with the Hub REST API when the current API key is rejected.
+   * Requires HUB_ACCESS_TOKEN env var (set automatically in dev mode).
+   * Returns true if registration succeeded and config was updated.
+   */
+  private async tryAutoRegister(): Promise<boolean> {
+    const hubAccessToken = process.env.HUB_ACCESS_TOKEN;
+    if (!hubAccessToken) {
+      console.error('[connector] Cannot auto-register: HUB_ACCESS_TOKEN env var not set');
+      return false;
+    }
+
+    // Derive the REST API base URL from the WebSocket URL
+    const wsUrl = this.config.hub_url;
+    const httpUrl = wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://');
+    const registerUrl = `${httpUrl}/api/servers`;
+    const serverName = `dev-${osHostname()}`;
+
+    try {
+      const body = JSON.stringify({ name: serverName });
+      const response = await fetch(registerUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${hubAccessToken}`,
+        },
+        body,
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error(`[connector] Auto-registration failed (${response.status}): ${text}`);
+        return false;
+      }
+
+      const data = await response.json() as { id: string; name: string; api_key: string };
+      console.log(`[connector] ✅ Auto-registered as "${data.name}" (id: ${data.id})`);
+
+      // Update config with new API key
+      this.config.api_key = data.api_key;
+      saveConfig(this.config);
+      console.log('[connector] Config updated with new API key');
+
+      return true;
+    } catch (err) {
+      console.error('[connector] Auto-registration error:', err instanceof Error ? err.message : err);
+      return false;
     }
   }
 

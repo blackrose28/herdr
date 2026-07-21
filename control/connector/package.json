@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "deploy": "tsc && cp dist/*.js ~/.local/share/herdr/connector/dist/ && systemctl --user restart herdr-connector.service",
-    "dev": "HERDR_PLUGIN_CONFIG_DIR=.dev-config HERDR_PLUGIN_STATE_DIR=.dev-state tsx watch src/cli.ts connect"
+    "dev": "HERDR_PLUGIN_CONFIG_DIR=.dev-config HERDR_PLUGIN_STATE_DIR=.dev-state HUB_ACCESS_TOKEN=herdr-hub-dev-token HERDR_SOCKET_PATH=${HERDR_SOCKET_PATH:-$HOME/.config/herdr/herdr.sock} tsx watch src/cli.ts connect"
   },
   "keywords": [
     "herdr",

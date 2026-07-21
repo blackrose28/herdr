@@ -70,7 +70,8 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
     };
 
     /**
-     * Rewrite terminal content while preserving scroll position.
+     * Full rewrite: clears the terminal and writes new content.
+     * Used only when content has fundamentally changed (not just appended).
      *
      * Key insight: terminal.write() is ASYNC in xterm.js v5+.
      * We must use its callback to restore scroll position AFTER
@@ -79,7 +80,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
      * We also use xterm's own buffer API (viewportY / baseY) rather
      * than DOM scrollTop, since xterm manages its own virtual viewport.
      */
-    const rewriteContent = useCallback((terminal: Terminal, text: string) => {
+    const fullRewrite = useCallback((terminal: Terminal, text: string) => {
       const wasFollowing = userFollowingRef.current;
       // Save the viewport line position (line number at top of visible area)
       const savedViewportY = terminal.buffer.active.viewportY;
@@ -105,6 +106,66 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
         }
       });
     }, []);
+
+    /**
+     * Incremental update using line-level diffing.
+     *
+     * Finds the longest common prefix at a line boundary, then uses
+     * ANSI cursor positioning (CPL) to move back to the divergence
+     * point and rewrites only the changed suffix. This avoids the
+     * flash from reset() for progress bars that change mid-content.
+     *
+     * Falls back to fullRewrite only when there is no common prefix
+     * or the changed region exceeds the visible screen height.
+     */
+    const updateContent = useCallback((terminal: Terminal, newText: string, oldText: string) => {
+      // Fast path: content only appended at end
+      if (newText.startsWith(oldText)) {
+        const delta = newText.slice(oldText.length);
+        if (delta.length > 0) {
+          terminal.write(delta, () => {
+            if (userFollowingRef.current) {
+              terminal.scrollToBottom();
+            }
+          });
+        }
+        return;
+      }
+
+      // Find longest common prefix (byte-level)
+      const minLen = Math.min(oldText.length, newText.length);
+      let prefixEnd = 0;
+      while (prefixEnd < minLen && oldText[prefixEnd] === newText[prefixEnd]) {
+        prefixEnd++;
+      }
+
+      // Back up to last newline to get a clean line boundary
+      const lastNl = newText.lastIndexOf('\n', prefixEnd - 1);
+      const safePrefixLen = lastNl + 1; // 0 if no newline found
+
+      // Count lines remaining in old text after the safe prefix
+      const oldSuffix = oldText.slice(safePrefixLen);
+      const linesToMoveUp = oldSuffix.split('\n').length - 1;
+
+      // Use cursor positioning only if we have a real common prefix
+      // and the region to rewrite fits on the visible screen
+      if (safePrefixLen > 0 && linesToMoveUp < terminal.rows) {
+        const newSuffix = newText.slice(safePrefixLen);
+        // CPL: \x1b[<N>F moves cursor up N lines to column 1
+        // \x1b[J clears from cursor to end of display
+        const move = linesToMoveUp > 0
+          ? `\x1b[${linesToMoveUp}F`
+          : '\r';
+        terminal.write(move + '\x1b[J' + newSuffix, () => {
+          if (userFollowingRef.current) {
+            terminal.scrollToBottom();
+          }
+        });
+      } else {
+        // No common prefix or too many lines changed
+        fullRewrite(terminal, newText);
+      }
+    }, [fullRewrite]);
 
     // Initialize xterm.js
     useEffect(() => {
@@ -197,18 +258,20 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
       if (!terminal || content === null || content === undefined) return;
 
       if (content !== lastContentRef.current) {
+        const oldContent = lastContentRef.current;
         lastContentRef.current = content;
-        rewriteContent(terminal, content);
+        updateContent(terminal, content, oldContent);
       }
-    }, [content, rewriteContent]);
+    }, [content, updateContent]);
 
     // Expose imperative handle for parent components
     const setContent = useCallback((text: string) => {
       const terminal = terminalRef.current;
       if (!terminal) return;
+      const oldContent = lastContentRef.current;
       lastContentRef.current = text;
-      rewriteContent(terminal, text);
-    }, [rewriteContent]);
+      updateContent(terminal, text, oldContent);
+    }, [updateContent]);
 
     const appendContent = useCallback((text: string) => {
       const terminal = terminalRef.current;

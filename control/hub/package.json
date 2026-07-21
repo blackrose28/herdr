@@ -4,7 +4,7 @@
   "description": "Centralized control panel for Herdr agent runtime servers",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "bash scripts/ensure-db.sh && tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "db:generate": "drizzle-kit generate",
