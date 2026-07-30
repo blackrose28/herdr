@@ -61,6 +61,7 @@ export function herdrRequest(method: string, params: Record<string, unknown> = {
 
     socket.on('error', (err) => {
       clearTimeout(timeout);
+      socket.destroy();
       if (!settled) {
         settled = true;
         reject(new Error(`Herdr socket error: ${err.message}`));
@@ -88,6 +89,8 @@ export function herdrSubscribe(
   const socket = netConnect(socketPath);
   let buffer = '';
   let isFirstMessage = true;
+  let closedIntentionally = false;
+  let errored = false;
 
   socket.on('connect', () => {
     const request = JSON.stringify({
@@ -111,6 +114,7 @@ export function herdrSubscribe(
           // First message is the subscription confirmation
           isFirstMessage = false;
           if (parsed.error) {
+            errored = true;
             onError(new Error(`Subscription failed: ${parsed.error.message}`));
             socket.destroy();
           }
@@ -124,14 +128,20 @@ export function herdrSubscribe(
   });
 
   socket.on('error', (err) => {
+    errored = true;
+    socket.destroy();
     onError(new Error(`Event subscription socket error: ${err.message}`));
   });
 
   socket.on('close', () => {
+    // 'close' always follows 'error', and also fires on our own intentional
+    // destroy() below — only report it as a failure when neither applies.
+    if (closedIntentionally || errored) return;
     onError(new Error('Event subscription socket closed'));
   });
 
   return () => {
+    closedIntentionally = true;
     socket.destroy();
   };
 }

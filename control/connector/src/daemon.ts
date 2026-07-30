@@ -197,6 +197,10 @@ export class ConnectorDaemon {
       { type: 'pane.exited' },
     ];
 
+    if (this.eventUnsub) {
+      this.eventUnsub();
+      this.eventUnsub = null;
+    }
     this.eventUnsub = herdrSubscribe(
       subscriptions,
       (event) => {

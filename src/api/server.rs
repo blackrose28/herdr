@@ -87,9 +87,15 @@ pub fn start_server_with_capabilities(
     let running = Arc::new(AtomicBool::new(true));
     let listener_running = Arc::clone(&running);
     let thread = std::thread::spawn(move || {
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => {
+        let mut backoff = Duration::from_millis(100);
+        const MAX_BACKOFF: Duration = Duration::from_secs(5);
+        loop {
+            if !listener_running.load(Ordering::Relaxed) {
+                break;
+            }
+            match listener.incoming().next() {
+                Some(Ok(stream)) => {
+                    backoff = Duration::from_millis(100);
                     let api_tx = api_tx.clone();
                     let event_hub = event_hub.clone();
                     let capabilities = capabilities.clone();
@@ -106,10 +112,16 @@ pub fn start_server_with_capabilities(
                         }
                     });
                 }
-                Err(err) => {
-                    error!(err = %err, "api listener accept failed");
-                    break;
+                Some(Err(err)) => {
+                    if is_accept_error_fatal(&err) {
+                        error!(err = %err, "api listener accept failed permanently");
+                        break;
+                    }
+                    warn!(err = %err, "api listener accept failed, retrying");
+                    std::thread::sleep(backoff);
+                    backoff = std::cmp::min(backoff * 2, MAX_BACKOFF);
                 }
+                None => break,
             }
         }
         debug!("api server thread exiting");
@@ -121,6 +133,43 @@ pub fn start_server_with_capabilities(
         identity,
         running,
     })
+}
+
+#[cfg(unix)]
+fn is_accept_error_fatal(err: &io::Error) -> bool {
+    match err.kind() {
+        io::ErrorKind::NotFound
+        | io::ErrorKind::PermissionDenied
+        | io::ErrorKind::InvalidInput
+        | io::ErrorKind::AddrInUse
+        | io::ErrorKind::AddrNotAvailable
+        | io::ErrorKind::Unsupported => true,
+        io::ErrorKind::Other => matches!(
+            err.raw_os_error(),
+            Some(
+                libc::EBADF
+                    | libc::ENOTSOCK
+                    | libc::EOPNOTSUPP
+                    | libc::EFAULT
+                    | libc::EINVAL
+                    | libc::EPROTO
+            )
+        ),
+        _ => false,
+    }
+}
+
+#[cfg(not(unix))]
+fn is_accept_error_fatal(err: &io::Error) -> bool {
+    matches!(
+        err.kind(),
+        io::ErrorKind::NotFound
+            | io::ErrorKind::PermissionDenied
+            | io::ErrorKind::InvalidInput
+            | io::ErrorKind::AddrInUse
+            | io::ErrorKind::AddrNotAvailable
+            | io::ErrorKind::Unsupported
+    )
 }
 
 fn prepare_socket_path(path: &Path) -> std::io::Result<()> {
