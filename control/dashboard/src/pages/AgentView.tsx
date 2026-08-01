@@ -136,10 +136,16 @@ export function AgentViewPage() {
     }
   }
 
-  async function handleSendKeystroke(text: string) {
+  async function handleSendKeystroke(keystroke: { text?: string; keys?: string[] }) {
     if (!serverId || !paneId) return;
     try {
-      await api.sendToPane(serverId, paneId, text);
+      // Named keys (escape, up, down) go through the keys channel so they
+      // aren't wrapped as bracketed-paste text and dropped by the target CLI.
+      if (keystroke.keys && keystroke.keys.length > 0) {
+        await api.sendKeysToPane(serverId, paneId, keystroke.keys);
+      } else if (keystroke.text) {
+        await api.sendToPane(serverId, paneId, keystroke.text);
+      }
       if (streamStatus !== 'streaming') {
         setTimeout(loadPaneContent, 500);
       }
@@ -155,20 +161,23 @@ export function AgentViewPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      handleSendKeystroke({ keys: ['escape'] });
     }
   };
 
-  // Common keystrokes: label, actual text to send, optional tooltip
-  const keystrokes: { label: string; text: string; tip: string }[] = [
+  // Common keystrokes: label, what to send (raw text bytes, or a named key), optional tooltip
+  const keystrokes: { label: string; text?: string; keys?: string[]; tip: string }[] = [
     { label: 'Ctrl+C', text: '\x03', tip: 'Interrupt / cancel' },
     { label: 'Ctrl+D', text: '\x04', tip: 'EOF / exit' },
     { label: 'Ctrl+Z', text: '\x1a', tip: 'Suspend process' },
     { label: 'Ctrl+L', text: '\x0c', tip: 'Clear screen' },
     { label: 'Tab', text: '\t', tip: 'Autocomplete' },
-    { label: 'Esc', text: '\x1b', tip: 'Escape' },
+    { label: 'Esc', keys: ['escape'], tip: 'Escape' },
     { label: 'Enter', text: '\n', tip: 'Submit / confirm' },
-    { label: '↑', text: '\x1b[A', tip: 'Up arrow / previous command' },
-    { label: '↓', text: '\x1b[B', tip: 'Down arrow / next command' },
+    { label: '↑', keys: ['up'], tip: 'Up arrow / previous command' },
+    { label: '↓', keys: ['down'], tip: 'Down arrow / next command' },
     { label: 'y', text: 'y\n', tip: 'Confirm (y + Enter)' },
     { label: 'n', text: 'n\n', tip: 'Deny (n + Enter)' },
   ];
@@ -297,6 +306,7 @@ export function AgentViewPage() {
               minHeight={300}
               maxHeight={600}
               fontSize={13}
+              onEscape={() => handleSendKeystroke({ keys: ['escape'] })}
             />
           )}
         </div>
@@ -307,7 +317,7 @@ export function AgentViewPage() {
               key={k.label}
               className="keystroke-btn"
               title={k.tip}
-              onClick={() => handleSendKeystroke(k.text)}
+              onClick={() => handleSendKeystroke(k)}
             >
               {k.label}
             </button>

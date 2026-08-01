@@ -95,6 +95,15 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
+  // Named keys (e.g. "escape", "up", "down") bypass bracketed-paste wrapping,
+  // so control keypresses should go through here rather than as raw text —
+  // sending a raw ESC byte as text gets wrapped as pasted content and dropped
+  // by CLIs that keep bracketed paste mode on.
+  sendKeysToPane: (serverId: string, paneId: string, keys: string[]) =>
+    apiFetch(`/api/servers/${serverId}/panes/${paneId}/send`, {
+      method: 'POST',
+      body: JSON.stringify({ keys }),
+    }),
   sendToAgent: (serverId: string, paneId: string, text: string) =>
     apiFetch(`/api/servers/${serverId}/command`, {
       method: 'POST',

@@ -21,6 +21,8 @@ interface TerminalPaneProps {
   maxHeight?: number;
   /** Font size */
   fontSize?: number;
+  /** Called when Escape is pressed while the terminal has focus */
+  onEscape?: () => void;
 }
 
 /**
@@ -28,12 +30,14 @@ interface TerminalPaneProps {
  * (colors, bold, italic, backgrounds, etc.)
  */
 export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
-  function TerminalPane({ content, minHeight = 200, maxHeight = 600, fontSize = 13 }, ref) {
+  function TerminalPane({ content, minHeight = 200, maxHeight = 600, fontSize = 13, onEscape }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const terminalRef = useRef<Terminal | null>(null);
     const fitAddonRef = useRef<FitAddon | null>(null);
     const lastContentRef = useRef<string>('');
     const mountedRef = useRef(false);
+    const onEscapeRef = useRef(onEscape);
+    onEscapeRef.current = onEscape;
 
     /**
      * Whether the user is "following" output (scrolled to bottom).
@@ -189,6 +193,18 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
       terminal.loadAddon(fitAddon);
 
       terminal.open(containerRef.current);
+
+      // xterm always preventDefault/stopPropagation's Escape internally (even
+      // with disableStdin), which would otherwise swallow it before any
+      // ancestor listener sees it. Returning false here skips that internal
+      // handling so Escape reaches our callback and isn't silently eaten.
+      terminal.attachCustomKeyEventHandler((event) => {
+        if (event.type === 'keydown' && event.key === 'Escape') {
+          onEscapeRef.current?.();
+          return false;
+        }
+        return true;
+      });
 
       // Use xterm's own onScroll event to track user scroll state.
       // onScroll fires with the new viewportY whenever the viewport scrolls.

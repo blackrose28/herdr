@@ -215,14 +215,18 @@ router.post('/servers/:id/panes/:paneId/read', async (req, res) => {
 
 /**
  * POST /api/servers/:id/panes/:paneId/send
- * Send text to a pane. Uses pane.send_input which handles bracketed paste mode
- * correctly for coding agents.
+ * Send text and/or named keys to a pane. Uses pane.send_input which handles
+ * bracketed paste mode correctly for coding agents.
  */
 router.post('/servers/:id/panes/:paneId/send', async (req, res) => {
   try {
-    const { text } = req.body;
-    if (!text || typeof text !== 'string') {
-      res.status(400).json({ error: 'text is required' });
+    const { text, keys } = req.body;
+    const explicitKeys: string[] = Array.isArray(keys)
+      ? keys.filter((k: unknown): k is string => typeof k === 'string')
+      : [];
+    const hasText = typeof text === 'string' && text.length > 0;
+    if (!hasText && explicitKeys.length === 0) {
+      res.status(400).json({ error: 'text or keys is required' });
       return;
     }
 
@@ -231,8 +235,12 @@ router.post('/servers/:id/panes/:paneId/send', async (req, res) => {
     // has bracketed paste mode enabled (common for coding agents like Grok, Claude).
     // pane.send_text sends raw bytes which get swallowed by bracketed paste mode.
     // Split text from trailing newline — send text as paste, Enter as key.
-    const hasTrailingNewline = text.endsWith('\n');
-    const textContent = hasTrailingNewline ? text.slice(0, -1) : text;
+    // Named keys (e.g. "escape", "up", "down") bypass paste wrapping entirely,
+    // so callers that mean a control keypress rather than pasted text should
+    // pass `keys` instead of embedding raw control bytes in `text`.
+    const rawText = hasText ? (text as string) : '';
+    const hasTrailingNewline = rawText.endsWith('\n');
+    const textContent = hasTrailingNewline ? rawText.slice(0, -1) : rawText;
 
     const result = await registry.sendCommandToServer(
       req.params.id,
@@ -240,7 +248,7 @@ router.post('/servers/:id/panes/:paneId/send', async (req, res) => {
       {
         pane_id: req.params.paneId,
         text: textContent,
-        keys: hasTrailingNewline ? ['enter'] : [],
+        keys: hasTrailingNewline ? ['enter', ...explicitKeys] : explicitKeys,
       }
     );
     res.json({ result });
