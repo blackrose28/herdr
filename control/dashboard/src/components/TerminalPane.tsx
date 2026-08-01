@@ -3,6 +3,14 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 
+// Matches ANSI CSI sequences (SGR colors, cursor movement, etc.) so line
+// width can be measured on-screen rather than by raw string length.
+const ANSI_ESCAPE_PATTERN = /\x1b\[[0-9;]*[a-zA-Z]/g;
+
+function visibleLineLength(line: string): number {
+  return line.replace(ANSI_ESCAPE_PATTERN, '').length;
+}
+
 export interface TerminalPaneHandle {
   /** Clear the terminal and write new content */
   setContent: (text: string) => void;
@@ -149,11 +157,22 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
 
       // Count lines remaining in old text after the safe prefix
       const oldSuffix = oldText.slice(safePrefixLen);
-      const linesToMoveUp = oldSuffix.split('\n').length - 1;
+      const oldSuffixLines = oldSuffix.split('\n');
+      const linesToMoveUp = oldSuffixLines.length - 1;
 
-      // Use cursor positioning only if we have a real common prefix
-      // and the region to rewrite fits on the visible screen
-      if (safePrefixLen > 0 && linesToMoveUp < terminal.rows) {
+      // The cursor-positioning patch assumes each replaced logical line took
+      // exactly one terminal row. If a line was long enough to soft-wrap, the
+      // cursor moves up too few rows, `\x1b[J` clears only part of the old
+      // block, and the leftover wrapped remnant plus the new content stack up
+      // on screen. Bail to a full rewrite whenever that could have happened.
+      const mightHaveWrapped = oldSuffixLines.some(
+        (line) => visibleLineLength(line) > terminal.cols
+      );
+
+      // Use cursor positioning only if we have a real common prefix,
+      // the region to rewrite fits on the visible screen, and no
+      // replaced line could have soft-wrapped.
+      if (safePrefixLen > 0 && linesToMoveUp < terminal.rows && !mightHaveWrapped) {
         const newSuffix = newText.slice(safePrefixLen);
         // CPL: \x1b[<N>F moves cursor up N lines to column 1
         // \x1b[J clears from cursor to end of display
@@ -166,7 +185,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(
           }
         });
       } else {
-        // No common prefix or too many lines changed
+        // No common prefix, too many lines changed, or a wrapped line involved
         fullRewrite(terminal, newText);
       }
     }, [fullRewrite]);
