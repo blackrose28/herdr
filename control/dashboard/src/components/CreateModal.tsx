@@ -9,7 +9,8 @@ interface CreateModalProps {
   /** For pane creation — target pane to split from */
   targetPaneId?: string;
   onClose: () => void;
-  onCreated: () => void;
+  /** Called after a successful create; passes the new pane's id when one was created. */
+  onCreated: (paneId?: string) => void;
 }
 
 /**
@@ -32,6 +33,8 @@ export function CreateModal({ type, serverId, workspaceId, targetPaneId, onClose
     setError(null);
 
     try {
+      let newPaneId: string | undefined;
+
       if (type === 'workspace') {
         await api.sendCommand(serverId, 'workspace.create', {
           ...(label ? { label } : {}),
@@ -45,7 +48,8 @@ export function CreateModal({ type, serverId, workspaceId, targetPaneId, onClose
         if (cwd) params.cwd = cwd;
         if (label) params.label = label;
 
-        await api.sendCommand(serverId, 'tab.create', params);
+        const response = await api.sendCommand(serverId, 'tab.create', params);
+        newPaneId = response?.result?.root_pane?.pane_id;
       } else {
         // pane.split — Herdr API expects direction = "right" | "down"
         const direction = paneMode === 'split_right' ? 'right' : 'down';
@@ -57,10 +61,11 @@ export function CreateModal({ type, serverId, workspaceId, targetPaneId, onClose
         if (targetPaneId) params.target_pane_id = targetPaneId;
         if (cwd) params.cwd = cwd;
 
-        await api.sendCommand(serverId, 'pane.split', params);
+        const response = await api.sendCommand(serverId, 'pane.split', params);
+        newPaneId = response?.result?.pane?.pane_id;
       }
 
-      onCreated();
+      onCreated(newPaneId);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create');

@@ -28,6 +28,11 @@ export function ServerDetailPage() {
     api.getOverview().then(setServersFromOverview).catch(() => {});
   };
 
+  const handlePaneCreated = (paneId?: string) => {
+    refreshOverview();
+    if (paneId) navigate(`/server/${serverId}/pane/${paneId}`);
+  };
+
   if (!server) {
     return (
       <div className="animate-in">
@@ -263,7 +268,7 @@ export function ServerDetailPage() {
           workspaceId={modal.type === 'pane' ? modal.workspaceId : undefined}
           targetPaneId={modal.type === 'pane' ? modal.targetPaneId : undefined}
           onClose={() => setModal(null)}
-          onCreated={refreshOverview}
+          onCreated={handlePaneCreated}
         />
       )}
     </div>
