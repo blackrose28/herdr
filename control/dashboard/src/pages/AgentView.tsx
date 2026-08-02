@@ -131,8 +131,9 @@ export function AgentViewPage() {
       console.error('Failed to send:', err);
     } finally {
       setLoading(false);
-      // Keep focus on input so user can type the next command immediately
-      inputRef.current?.focus();
+      // input is disabled while loading; wait for React to flush the
+      // disabled=false update to the DOM before a focus() call can take effect
+      requestAnimationFrame(() => inputRef.current?.focus());
     }
   }
 
