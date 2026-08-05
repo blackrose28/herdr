@@ -65,6 +65,30 @@ pub enum Agent {
 }
 
 impl Agent {
+    pub const ALL: [Self; 21] = [
+        Self::Pi,
+        Self::Claude,
+        Self::Codex,
+        Self::Gemini,
+        Self::Cursor,
+        Self::Devin,
+        Self::Antigravity,
+        Self::Cline,
+        Self::Omp,
+        Self::Mastracode,
+        Self::OpenCode,
+        Self::GithubCopilot,
+        Self::Kimi,
+        Self::Kiro,
+        Self::Droid,
+        Self::Amp,
+        Self::Grok,
+        Self::Hermes,
+        Self::Kilo,
+        Self::Qodercli,
+        Self::Maki,
+    ];
+
     pub const SCREEN_MANIFEST_AGENTS: [Self; 19] = [
         Self::Pi,
         Self::Claude,
@@ -114,6 +138,32 @@ pub fn agent_label(agent: Agent) -> &'static str {
     }
 }
 
+pub fn interactive_agent_executable(agent: Agent) -> &'static str {
+    match agent {
+        Agent::Pi => "pi",
+        Agent::Claude => "claude",
+        Agent::Codex => "codex",
+        Agent::Gemini => "gemini",
+        Agent::Cursor => "cursor-agent",
+        Agent::Devin => "devin",
+        Agent::Antigravity => "agy",
+        Agent::Cline => "cline",
+        Agent::Omp => "omp",
+        Agent::Mastracode => "mastracode",
+        Agent::OpenCode => "opencode",
+        Agent::GithubCopilot => "copilot",
+        Agent::Kimi => "kimi",
+        Agent::Kiro => "kiro-cli",
+        Agent::Droid => "droid",
+        Agent::Amp => "amp",
+        Agent::Grok => "grok",
+        Agent::Hermes => "hermes",
+        Agent::Kilo => "kilo",
+        Agent::Qodercli => "qodercli",
+        Agent::Maki => "maki",
+    }
+}
+
 pub fn parse_agent_label(agent: &str) -> Option<Agent> {
     let name = normalized_agent_lookup_name(agent);
     parse_canonical_agent_label(&name).or_else(|| lookup_agent(&name))
@@ -136,7 +186,7 @@ fn lookup_agent(name: &str) -> Option<Agent> {
         "cline" => Some(Agent::Cline),
         "omp" => Some(Agent::Omp),
         "mastracode" | "mastra-code" | "mastra code" => Some(Agent::Mastracode),
-        "opencode" | "open-code" => Some(Agent::OpenCode),
+        "opencode" | "opencode2" | "open-code" => Some(Agent::OpenCode),
         "copilot" | "github-copilot" | "ghcs" => Some(Agent::GithubCopilot),
         "kimi" | "kimi-code" | "kimi code" => Some(Agent::Kimi),
         "kiro" | "kiro-cli" => Some(Agent::Kiro),
@@ -236,10 +286,16 @@ pub(crate) fn full_lifecycle_hook_authority(source: &str, agent_label: &str) -> 
         ("herdr:pi", "pi")
             | ("herdr:omp", "omp")
             | ("herdr:mastracode", "mastracode")
-            | ("herdr:hermes", "hermes")
             | ("herdr:opencode", "opencode")
             | ("herdr:kilo", "kilo")
             | ("herdr:kimi", "kimi")
+    )
+}
+
+pub(crate) fn session_identity_only_integration(source: &str, agent_label: &str) -> bool {
+    matches!(
+        (source, agent_label),
+        ("herdr:hermes", "hermes") | ("herdr:antigravity_cli", "agy")
     )
 }
 
@@ -619,6 +675,8 @@ mod tests {
         assert_eq!(identify_agent("mastra-code"), Some(Agent::Mastracode));
         assert_eq!(identify_agent("opencode"), Some(Agent::OpenCode));
         assert_eq!(identify_agent("opencode.exe"), Some(Agent::OpenCode));
+        assert_eq!(identify_agent("opencode2"), Some(Agent::OpenCode));
+        assert_eq!(identify_agent("opencode2.exe"), Some(Agent::OpenCode));
         assert_eq!(identify_agent("kimi"), Some(Agent::Kimi));
         assert_eq!(identify_agent("Kimi Code"), Some(Agent::Kimi));
         assert_eq!(identify_agent("kiro"), Some(Agent::Kiro));
@@ -662,34 +720,41 @@ mod tests {
 
     #[test]
     fn every_agent_label_round_trips_through_canonical_and_alias_parsers() {
-        let agents = [
-            Agent::Pi,
-            Agent::Claude,
-            Agent::Codex,
-            Agent::Gemini,
-            Agent::Cursor,
-            Agent::Devin,
-            Agent::Antigravity,
-            Agent::Cline,
-            Agent::Omp,
-            Agent::Mastracode,
-            Agent::OpenCode,
-            Agent::GithubCopilot,
-            Agent::Kimi,
-            Agent::Kiro,
-            Agent::Droid,
-            Agent::Amp,
-            Agent::Grok,
-            Agent::Hermes,
-            Agent::Kilo,
-            Agent::Qodercli,
-            Agent::Maki,
-        ];
-
-        for agent in agents {
+        for agent in Agent::ALL {
             let label = agent_label(agent);
             assert_eq!(parse_canonical_agent_label(label), Some(agent));
             assert_eq!(parse_agent_label(label), Some(agent));
+        }
+    }
+
+    #[test]
+    fn every_agent_has_a_canonical_interactive_executable() {
+        let expected = [
+            (Agent::Pi, "pi"),
+            (Agent::Claude, "claude"),
+            (Agent::Codex, "codex"),
+            (Agent::Gemini, "gemini"),
+            (Agent::Cursor, "cursor-agent"),
+            (Agent::Devin, "devin"),
+            (Agent::Antigravity, "agy"),
+            (Agent::Cline, "cline"),
+            (Agent::Omp, "omp"),
+            (Agent::Mastracode, "mastracode"),
+            (Agent::OpenCode, "opencode"),
+            (Agent::GithubCopilot, "copilot"),
+            (Agent::Kimi, "kimi"),
+            (Agent::Kiro, "kiro-cli"),
+            (Agent::Droid, "droid"),
+            (Agent::Amp, "amp"),
+            (Agent::Grok, "grok"),
+            (Agent::Hermes, "hermes"),
+            (Agent::Kilo, "kilo"),
+            (Agent::Qodercli, "qodercli"),
+            (Agent::Maki, "maki"),
+        ];
+        assert_eq!(expected.len(), Agent::ALL.len());
+        for (agent, executable) in expected {
+            assert_eq!(interactive_agent_executable(agent), executable);
         }
     }
 
@@ -708,6 +773,18 @@ mod tests {
             "mastracode"
         ));
         assert!(!Agent::SCREEN_MANIFEST_AGENTS.contains(&Agent::Mastracode));
+    }
+
+    #[test]
+    fn session_identity_integrations_leave_state_to_screen_detection() {
+        for (source, label, agent) in [
+            ("herdr:hermes", "hermes", Agent::Hermes),
+            ("herdr:antigravity_cli", "agy", Agent::Antigravity),
+        ] {
+            assert!(!full_lifecycle_hook_authority(source, label));
+            assert!(session_identity_only_integration(source, label));
+            assert!(Agent::SCREEN_MANIFEST_AGENTS.contains(&agent));
+        }
     }
 
     #[test]
@@ -944,6 +1021,23 @@ mod tests {
         };
 
         assert_eq!(identify_agent_in_job(&job), None);
+    }
+
+    #[test]
+    fn identify_agent_in_job_detects_opencode2_as_opencode() {
+        let job = crate::platform::ForegroundJob {
+            process_group_id: 123,
+            processes: vec![foreground_process(
+                123,
+                "opencode2",
+                &["opencode2", "--standalone"],
+            )],
+        };
+
+        assert_eq!(
+            identify_agent_in_job(&job),
+            Some((Agent::OpenCode, "opencode2".to_string()))
+        );
     }
 
     #[test]
